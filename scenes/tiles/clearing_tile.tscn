@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://c7c1o3w1hpwca"]
+
+[ext_resource type="Script" uid="uid://dmujotqn0ckgv" path="res://scripts/core/tile_base.gd" id="0_tile"]
+[ext_resource type="Shader" uid="uid://c3isbyy8653u4" path="res://shaders/prototype_tile.gdshader" id="2_8oi0l"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_nq6ts"]
+render_priority = 0
+shader = ExtResource("2_8oi0l")
+shader_parameter/tile_color = Color(0.42, 0.62, 0.28, 1)
+shader_parameter/terrain_type = 1
+shader_parameter/pattern_scale = 6.0
+shader_parameter/pattern_opacity = 0.25
+shader_parameter/roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_1vsui"]
+material = SubResource("ShaderMaterial_nq6ts")
+size = Vector3(1, 0.06, 1)
+
+[node name="ClearingTile" type="Node3D" unique_id=1455544043]
+script = ExtResource("0_tile")
+
+[node name="TileMesh" type="MeshInstance3D" parent="." unique_id=1198634649]
+mesh = SubResource("BoxMesh_1vsui")
+
+[node name="Decorations" type="Node3D" parent="." unique_id=1438251454]

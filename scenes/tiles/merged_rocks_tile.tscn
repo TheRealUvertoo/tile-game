@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://bcmkfbhr8lh7k"]
+
+[ext_resource type="Script" uid="uid://dmujotqn0ckgv" path="res://scripts/core/tile_base.gd" id="1_rrklr"]
+[ext_resource type="Shader" path="res://shaders/prototype_tile.gdshader" id="2_r3iq8"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_8qvgp"]
+render_priority = 0
+shader = ExtResource("2_r3iq8")
+shader_parameter/tile_color = Color(0.44, 0.4, 0.36, 1)
+shader_parameter/terrain_type = 2
+shader_parameter/pattern_scale = 12.0
+shader_parameter/pattern_opacity = 0.25
+shader_parameter/roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_ixku0"]
+material = SubResource("ShaderMaterial_8qvgp")
+size = Vector3(2, 0.1, 2)
+
+[node name="MergedRocksTile" type="Node3D" unique_id=1467536525]
+script = ExtResource("1_rrklr")
+
+[node name="TileMesh" type="MeshInstance3D" parent="." unique_id=1177071124]
+mesh = SubResource("BoxMesh_ixku0")
+
+[node name="Decorations" type="Node3D" parent="." unique_id=703706831]

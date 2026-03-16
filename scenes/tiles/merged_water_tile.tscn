@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://dmujotqn0ckgv" path="res://scripts/core/tile_base.gd" id="1_water"]
+[ext_resource type="Shader" uid="uid://c3isbyy8653u4" path="res://shaders/prototype_tile.gdshader" id="2_water"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_mwater"]
+render_priority = 0
+shader = ExtResource("2_water")
+shader_parameter/tile_color = Color(0.15, 0.35, 0.65, 1)
+shader_parameter/terrain_type = 3
+shader_parameter/pattern_scale = 12.0
+shader_parameter/pattern_opacity = 0.25
+shader_parameter/roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_mwater"]
+material = SubResource("ShaderMaterial_mwater")
+size = Vector3(2, 0.1, 2)
+
+[node name="MergedWaterTile" type="Node3D"]
+script = ExtResource("1_water")
+
+[node name="TileMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_mwater")
+
+[node name="Decorations" type="Node3D" parent="."]

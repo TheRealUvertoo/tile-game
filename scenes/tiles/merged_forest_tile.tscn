@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://takcq4lk1n0t"]
+
+[ext_resource type="Script" uid="uid://dmujotqn0ckgv" path="res://scripts/core/tile_base.gd" id="1_h4ta1"]
+[ext_resource type="Shader" path="res://shaders/prototype_tile.gdshader" id="2_cv2wb"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_hy14s"]
+render_priority = 0
+shader = ExtResource("2_cv2wb")
+shader_parameter/tile_color = Color(0.18, 0.32, 0.13, 1)
+shader_parameter/terrain_type = 0
+shader_parameter/pattern_scale = 12.0
+shader_parameter/pattern_opacity = 0.25
+shader_parameter/roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_4utxe"]
+material = SubResource("ShaderMaterial_hy14s")
+size = Vector3(2, 0.1, 2)
+
+[node name="MergedForestTile" type="Node3D" unique_id=465823817]
+script = ExtResource("1_h4ta1")
+
+[node name="TileMesh" type="MeshInstance3D" parent="." unique_id=1154790582]
+mesh = SubResource("BoxMesh_4utxe")
+
+[node name="Decorations" type="Node3D" parent="." unique_id=1475514235]

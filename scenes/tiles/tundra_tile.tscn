@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://dmujotqn0ckgv" path="res://scripts/core/tile_base.gd" id="1_tile"]
+[ext_resource type="Shader" uid="uid://c3isbyy8653u4" path="res://shaders/prototype_tile.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_tundra"]
+render_priority = 0
+shader = ExtResource("2_shader")
+shader_parameter/tile_color = Color(0.55, 0.68, 0.75, 1)
+shader_parameter/terrain_type = 8
+shader_parameter/pattern_scale = 6.0
+shader_parameter/pattern_opacity = 0.25
+shader_parameter/roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_tundra"]
+material = SubResource("ShaderMaterial_tundra")
+size = Vector3(1, 0.06, 1)
+
+[node name="TundraTile" type="Node3D"]
+script = ExtResource("1_tile")
+
+[node name="TileMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_tundra")
+
+[node name="Decorations" type="Node3D" parent="."]
