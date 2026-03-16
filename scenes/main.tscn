@@ -8,7 +8,6 @@
 [ext_resource type="Script" uid="uid://b3d2h101idhq2" path="res://scripts/core/tile_placement.gd" id="8_85g3d"]
 [ext_resource type="Shader" uid="uid://dxmrptx5ckbwi" path="res://shaders/tilt_shift.gdshader" id="8_tipki"]
 [ext_resource type="Script" uid="uid://dadc46kwxwac1" path="res://scripts/components/tilt_shift_controller.gd" id="9_85g3d"]
-[ext_resource type="Script" uid="uid://bi25pnpqoygy" path="res://scripts/core/quest_manager.gd" id="9_choun"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 
@@ -83,8 +82,6 @@ script = ExtResource("7_o6xl0")
 [node name="TilePlacement" type="Node3D" parent="." unique_id=1333293827]
 script = ExtResource("8_85g3d")
 
-[node name="QuestManager" type="Node" parent="." unique_id=1356825967]
-script = ExtResource("9_choun")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=1306407145]
 transform = Transform3D(0.86627996, -0.3829644, 0.32124722, 0, 0.6426906, 0.76569504, -0.500147, -0.6633138, 0.5564165, 0, 5, 0)

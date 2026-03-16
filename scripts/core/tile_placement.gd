@@ -1,7 +1,7 @@
 class_name TilePlacement
 extends Node3D
 
-## Handles tile group placement: hover preview, R-key rotation, slot markers, LMB place.
+## Handles Carcassonne-style tile placement: hover preview, R-key rotation, LMB place.
 
 var grid: TileGrid
 var camera: Camera3D
@@ -17,22 +17,20 @@ var hovered_cell: Vector2i = Vector2i(99999, 99999)
 @export var valid_color: Color = Color(0.3, 1.0, 0.3, 0.35)
 @export var neutral_color: Color = Color(1.0, 1.0, 1.0, 0.12)
 
-var _previews: Array[Node3D] = []
-var _slot_markers: Dictionary = {}    # Vector2i -> MeshInstance3D
+var _preview: Node3D = null
+var _slot_markers: Dictionary = {}
 var _shared_marker_mesh: ArrayMesh
 var _mat_neutral: StandardMaterial3D
 var _mat_valid: StandardMaterial3D
 var _invalid_overlay: StandardMaterial3D
 var _ground_plane := Plane(Vector3.UP, 0)
-var _last_tint_valid: int = -1  # -1 = unset, 0 = invalid, 1 = valid (avoids re-tinting)
+var _last_tint_valid: int = -1
 
 
 func _ready() -> void:
 	_mat_neutral = _make_unshaded_mat(neutral_color)
 	_mat_valid = _make_unshaded_mat(valid_color)
 	SignalBus.group_selected.connect(_on_group_selected)
-	SignalBus.mystery_tile_spawned.connect(func(_cell: Vector2i) -> void: refresh_slot_markers())
-	SignalBus.mystery_tile_discovered.connect(func(_cell: Vector2i, _t: int, _p: int) -> void: refresh_slot_markers())
 
 
 func _process(_delta: float) -> void:
@@ -46,12 +44,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_rotate_group()
 
 
-# ---- Group lifecycle ----
-
 func _on_group_selected(group: TileGroup) -> void:
 	current_group = group
 	_last_tint_valid = -1
-	_rebuild_previews()
+	_rebuild_preview()
 	_update_preview()
 	refresh_slot_markers()
 
@@ -61,12 +57,10 @@ func _rotate_group() -> void:
 		return
 	current_group.rotate_cw()
 	_last_tint_valid = -1
-	_rebuild_previews()
+	_rebuild_preview()
 	_update_preview()
 	_update_all_marker_colors()
 
-
-# ---- Hover & preview ----
 
 func _update_hover() -> void:
 	if current_group == null or camera == null or grid == null:
@@ -85,74 +79,86 @@ func _update_hover() -> void:
 
 
 func _update_preview() -> void:
-	if current_group == null:
-		_hide_previews()
+	if current_group == null or _preview == null:
+		_hide_preview()
 		return
 
-	var cells := current_group.get_cell_positions(hovered_cell)
-	var is_valid := grid.is_valid_group_placement(cells)
+	_preview.visible = true
+	_preview.position = grid.grid_to_world(hovered_cell)
+	_preview.position.y = preview_lift
 
-	for i: int in range(mini(cells.size(), _previews.size())):
-		var node := _previews[i]
-		node.visible = true
-		node.position = grid.grid_to_world(cells[i])
-		node.position.y = preview_lift
+	var rotated_edges := current_group.get_rotated_edges()
+	var is_valid := grid.is_valid_tile_placement(hovered_cell, rotated_edges)
 
-	# Only re-tint when validity actually changes
 	var tint_state := 1 if is_valid else 0
 	if tint_state != _last_tint_valid:
 		_last_tint_valid = tint_state
-		for node: Node3D in _previews:
-			_tint_recursive(node, is_valid)
+		_tint_recursive(_preview, is_valid)
 
 
-func _hide_previews() -> void:
-	for node: Node3D in _previews:
-		node.visible = false
+func _hide_preview() -> void:
+	if _preview != null:
+		_preview.visible = false
 	_last_tint_valid = -1
 
-
-# ---- Placement ----
 
 func _try_place() -> void:
 	if current_group == null:
 		return
-	var cells := current_group.get_cell_positions(hovered_cell)
-	if not grid.is_valid_group_placement(cells):
+	var rotated_edges := current_group.get_rotated_edges()
+	if not grid.is_valid_tile_placement(hovered_cell, rotated_edges):
 		return
 	if grid.try_place_group(hovered_cell, current_group):
 		current_group = null
-		_hide_previews()
+		_hide_preview()
 		refresh_slot_markers()
 
 
-# ---- Preview construction ----
-
-func _rebuild_previews() -> void:
-	for node: Node3D in _previews:
-		node.queue_free()
-	_previews.clear()
+func _rebuild_preview() -> void:
+	if _preview != null:
+		_preview.queue_free()
+		_preview = null
 
 	if current_group == null:
 		return
 
-	for i: int in range(current_group.member_count()):
-		var terrain: int = current_group.terrains[i]
-		var scene: PackedScene = TileGrid.TILE_SCENES.get(terrain)
-		var node: Node3D = scene.instantiate() if scene else Node3D.new()
-		node.visible = false
-		# Set flag BEFORE add_child — _ready() checks this to show decorations
-		if node is TileBase:
-			(node as TileBase)._animation_played = true
-		add_child(node)
-		_previews.append(node)
+	var node: Node3D = TileGrid.TILE_SCENE.instantiate()
+	node.visible = false
+	if node is TileBase:
+		(node as TileBase)._animation_played = true
+	add_child(node)
+	_preview = node
+
+	# Set edge shader on preview
+	var rotated_edges := current_group.get_rotated_edges()
+	var mesh_inst := _find_mesh(node)
+	if mesh_inst != null and mesh_inst.mesh and mesh_inst.mesh.get_surface_count() > 0:
+		var surf_mat := mesh_inst.mesh.surface_get_material(0)
+		if surf_mat is ShaderMaterial:
+			mesh_inst.mesh = mesh_inst.mesh.duplicate()
+			var mat := (surf_mat as ShaderMaterial).duplicate()
+			mesh_inst.mesh.surface_set_material(0, mat)
+			mat.set_shader_parameter("edge_e", rotated_edges[0])
+			mat.set_shader_parameter("edge_n", rotated_edges[1])
+			mat.set_shader_parameter("edge_w", rotated_edges[2])
+			mat.set_shader_parameter("edge_s", rotated_edges[3])
+			mat.set_shader_parameter("tile_color", CellData.BASE_COLOR)
+
+
+func _find_mesh(node: Node) -> MeshInstance3D:
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		return node as MeshInstance3D
+	for child: Node in node.get_children():
+		var result := _find_mesh(child)
+		if result != null:
+			return result
+	return null
 
 
 # ---- Slot markers ----
 
 func refresh_slot_markers() -> void:
 	var current_valid := grid.valid_positions
-
 	var to_remove: Array[Vector2i] = []
 	for pos: Vector2i in _slot_markers:
 		if not current_valid.has(pos):
@@ -160,11 +166,9 @@ func refresh_slot_markers() -> void:
 	for pos: Vector2i in to_remove:
 		(_slot_markers[pos] as MeshInstance3D).queue_free()
 		_slot_markers.erase(pos)
-
 	for pos: Vector2i in current_valid:
 		if not _slot_markers.has(pos):
 			_slot_markers[pos] = _create_marker(pos)
-
 	_update_all_marker_colors()
 
 
@@ -201,18 +205,17 @@ func _update_all_marker_colors() -> void:
 			(_slot_markers[cell] as MeshInstance3D).material_override = _mat_neutral
 		return
 
-	var group_celles := current_group.get_cell_positions(hovered_cell)
-	var is_valid := grid.is_valid_group_placement(group_celles)
-	var valid_set: Dictionary = {}
-	if is_valid:
-		for cell: Vector2i in group_celles:
-			valid_set[cell] = true
+	var rotated_edges := current_group.get_rotated_edges()
+	var is_valid := grid.is_valid_tile_placement(hovered_cell, rotated_edges)
 
 	for cell: Vector2i in _slot_markers:
-		(_slot_markers[cell] as MeshInstance3D).material_override = _mat_valid if valid_set.has(cell) else _mat_neutral
+		var mat: StandardMaterial3D
+		if cell == hovered_cell and is_valid:
+			mat = _mat_valid
+		else:
+			mat = _mat_neutral
+		(_slot_markers[cell] as MeshInstance3D).material_override = mat
 
-
-# ---- Helpers ----
 
 static func _make_unshaded_mat(color: Color) -> StandardMaterial3D:
 	var mat := StandardMaterial3D.new()

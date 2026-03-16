@@ -6,11 +6,11 @@
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_desert"]
 render_priority = 0
 shader = ExtResource("2_shader")
-shader_parameter/tile_color = Color(0.72, 0.58, 0.32, 1)
-shader_parameter/terrain_type = 4
-shader_parameter/pattern_scale = 6.0
-shader_parameter/pattern_opacity = 0.25
-shader_parameter/roughness = 0.85
+shader_parameter/tile_color = Color(0.82, 0.72, 0.48, 1)
+shader_parameter/edge_e = 0
+shader_parameter/edge_n = 0
+shader_parameter/edge_w = 0
+shader_parameter/edge_s = 0
 
 [sub_resource type="BoxMesh" id="BoxMesh_desert"]
 material = SubResource("ShaderMaterial_desert")

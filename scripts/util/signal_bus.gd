@@ -20,33 +20,17 @@ signal group_placed(cells: Array[Vector2i], tiles: Array[CellData])
 @warning_ignore("unused_signal")
 signal score_earned(total: int, delta: int, result: TileScoring.ScoringResult)
 
-# Quests
-@warning_ignore("unused_signal")
-signal quest_started(quest: QuestData)
-@warning_ignore("unused_signal")
-signal quest_progressed(quest: QuestData, progress: int)
-@warning_ignore("unused_signal")
-signal quest_completed(quest: QuestData)
-
 # Deck & game state
 @warning_ignore("unused_signal")
 signal stack_changed(remaining: int)
 @warning_ignore("unused_signal")
 signal game_ended(final_score: int)
 
-# Tile merging
+# Ruins discovery
 @warning_ignore("unused_signal")
-signal tiles_merged(cells: Array[Vector2i], terrain: int)
-
-# Mystery tiles
+signal ruin_spawned(cell: Vector2i)
 @warning_ignore("unused_signal")
-signal mystery_tile_spawned(cell: Vector2i)
-@warning_ignore("unused_signal")
-signal mystery_tile_discovered(cell: Vector2i, terrain: int, points: int)
-
-# Combo / streak
-@warning_ignore("unused_signal")
-signal combo_hit(combo_count: int, total_points: int)
+signal ruin_discovered(cell: Vector2i, artifact_name: String, bonus_points: int, bonus_groups: int)
 
 # --- Hand System ---
 @warning_ignore("unused_signal")
