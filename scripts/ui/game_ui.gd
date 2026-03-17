@@ -1,6 +1,6 @@
 extends Control
 
-## Game UI: score, stack counter, turn counter, edge legend, game over.
+## Game UI: score, stack counter, turn counter, terrain legend, game over.
 
 var _score_label: Label
 var _stack_label: Label
@@ -11,7 +11,7 @@ var _last_stack_count: int = -1
 
 func _ready() -> void:
 	_build_hud()
-	_build_edge_legend()
+	_build_terrain_legend()
 
 	SignalBus.score_earned.connect(_on_score_earned)
 	SignalBus.stack_changed.connect(_on_stack_changed)
@@ -53,20 +53,20 @@ func _build_hud() -> void:
 	vbox.add_child(_turn_label)
 
 
-func _build_edge_legend() -> void:
+func _build_terrain_legend() -> void:
 	var legend := VBoxContainer.new()
 	legend.anchor_left = 0.0
 	legend.anchor_top = 1.0
 	legend.anchor_bottom = 1.0
 	legend.offset_left = 32
-	legend.offset_top = -280
+	legend.offset_top = -230
 	legend.offset_bottom = -32
 	legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	legend.add_theme_constant_override("separation", 6)
 	add_child(legend)
 
 	var header := Label.new()
-	header.text = "Typy krawędzi:"
+	header.text = "Tereny:"
 	header.add_theme_font_size_override("font_size", 18)
 	header.add_theme_color_override("font_color", Color(0.7, 0.65, 0.5, 0.6))
 	header.add_theme_color_override("font_outline_color", Color(0, 0, 0))
@@ -74,7 +74,7 @@ func _build_edge_legend() -> void:
 	header.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	legend.add_child(header)
 
-	for edge_type: int in range(6):
+	for terrain_type: int in range(4):
 		var row := HBoxContainer.new()
 		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_theme_constant_override("separation", 8)
@@ -82,12 +82,12 @@ func _build_edge_legend() -> void:
 
 		var swatch := ColorRect.new()
 		swatch.custom_minimum_size = Vector2(16, 16)
-		swatch.color = CellData.EDGE_COLORS[edge_type]
+		swatch.color = CellData.TERRAIN_COLORS[terrain_type]
 		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(swatch)
 
 		var name_label := Label.new()
-		name_label.text = CellData.EDGE_NAMES[edge_type]
+		name_label.text = CellData.TERRAIN_NAMES[terrain_type]
 		name_label.add_theme_font_size_override("font_size", 16)
 		name_label.add_theme_color_override("font_color", Color(0.7, 0.65, 0.5, 0.5))
 		name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))

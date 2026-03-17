@@ -1,15 +1,15 @@
 class_name RuinsManager
 extends Node
 
-## Spawns ruins on the map and discovers them when a trail connects to them.
+## Spawns ruins on the hex map. Discovered when any tile is placed adjacent.
 ## Discovered ruins yield artifacts (bonus points, extra tiles, etc.)
 
 @export var initial_ruins: int = 5
 @export var max_ruins: int = 8
-@export var spawn_distance_min: int = 3   ## Min distance from origin for new ruins
-@export var spawn_distance_max: int = 8   ## Max distance from origin for new ruins
-@export var spawn_chance: float = 0.25    ## Chance to spawn new ruin after placement
-@export var spawn_every_n_turns: int = 3  ## Also spawn after N placements
+@export var spawn_distance_min: int = 5
+@export var spawn_distance_max: int = 10
+@export var spawn_chance: float = 0.25
+@export var spawn_every_n_turns: int = 3
 
 var _grid: TileGrid
 var _rng := RandomNumberGenerator.new()
@@ -45,8 +45,8 @@ func _spawn_initial_ruins() -> void:
 func _on_group_placed(cells: Array[Vector2i], _tiles: Array[CellData]) -> void:
 	_placement_count += 1
 
-	# Check if any placed tile has a trail edge touching a ruin
-	_check_trail_discovery(cells)
+	# Check if any placed tile is adjacent to an undiscovered ruin
+	_check_discovery(cells)
 
 	# Periodically spawn new ruins
 	if _placement_count % spawn_every_n_turns == 0:
@@ -56,17 +56,9 @@ func _on_group_placed(cells: Array[Vector2i], _tiles: Array[CellData]) -> void:
 		_try_spawn_ruin()
 
 
-func _check_trail_discovery(placed_cells: Array[Vector2i]) -> void:
+func _check_discovery(placed_cells: Array[Vector2i]) -> void:
 	for cell: Vector2i in placed_cells:
-		if not _grid.placed_tiles.has(cell):
-			continue
-		var tile: CellData = _grid.placed_tiles[cell]
-
-		for dir: int in range(4):
-			# Check if this tile's edge is a trail
-			if tile.edges[dir] != CellData.EdgeType.TRAIL:
-				continue
-
+		for dir: int in range(6):
 			var neighbor := cell + CellData.DIRECTIONS[dir]
 			if not _ruins.has(neighbor):
 				continue
@@ -75,7 +67,6 @@ func _check_trail_discovery(placed_cells: Array[Vector2i]) -> void:
 			if ruin_data.discovered:
 				continue
 
-			# Trail connects to undiscovered ruin — discover it!
 			_discover_ruin(neighbor)
 
 
@@ -83,31 +74,34 @@ func _discover_ruin(cell: Vector2i) -> void:
 	var ruin_data: Dictionary = _ruins[cell]
 	ruin_data.discovered = true
 
-	# Roll artifact
 	var artifact := _roll_artifact()
 
-	# Discovered ruin becomes a sand tile (easy to build around)
-	var sand_edges: Array[int] = [
-		CellData.EdgeType.SAND, CellData.EdgeType.SAND,
-		CellData.EdgeType.SAND, CellData.EdgeType.SAND
-	]
-	var sand_tile := CellData.make(sand_edges)
-	_grid.placed_tiles[cell] = sand_tile
+	# Discovered ruin becomes wasteland tile matching neighbor edges
+	var wasteland_edges: Array[int] = [0, 0, 0, 0, 0, 0]
+	for dir: int in range(6):
+		var npos := cell + CellData.DIRECTIONS[dir]
+		if _grid.placed_tiles.has(npos):
+			var ntile: CellData = _grid.placed_tiles[npos]
+			wasteland_edges[dir] = ntile.edges[CellData.opposite_dir(dir)]
+	var tile := CellData.make(wasteland_edges)
+	_grid.placed_tiles[cell] = tile
 	_grid.valid_positions.erase(cell)
 
-	# Update valid positions around the ruin
-	for dir: int in range(4):
+	# Update valid positions around the discovered ruin
+	for dir: int in range(6):
 		var neighbor := cell + CellData.DIRECTIONS[dir]
 		if not _grid.placed_tiles.has(neighbor):
 			_grid.valid_positions[neighbor] = true
 
-	# Update visual — change from mystery to discovered (keep ruins look)
+	# Update shader on existing visual
 	var visual: Node3D = ruin_data.visual
 	if visual != null:
+		_grid._set_tile_shader(visual, tile)
 		_animate_discovery(visual)
-		# Visual stays as ruins appearance (shader unchanged, just remove tint)
 
-	SignalBus.ruin_discovered.emit(cell, artifact.name, artifact.points, artifact.groups)
+	# Emit discovery signal (if connected)
+	if SignalBus.has_signal("ruin_discovered"):
+		SignalBus.ruin_discovered.emit(cell, artifact.name as String, artifact.points as int, artifact.groups as int)
 
 
 func _roll_artifact() -> Dictionary:
@@ -126,7 +120,6 @@ func _roll_artifact() -> Dictionary:
 
 
 func _try_spawn_ruin() -> void:
-	# Find a valid position at distance from existing tiles
 	var attempts := 30
 	for i: int in range(attempts):
 		var angle := _rng.randf() * TAU
@@ -136,7 +129,6 @@ func _try_spawn_ruin() -> void:
 			roundi(sin(angle) * float(dist))
 		)
 
-		# Must not be on existing tile or existing ruin
 		if _grid.placed_tiles.has(cell):
 			continue
 		if _ruins.has(cell):
@@ -147,7 +139,6 @@ func _try_spawn_ruin() -> void:
 
 
 func _spawn_ruin_at(cell: Vector2i) -> void:
-	# Create a visual (same tile scene but with mystery look)
 	var visual: Node3D = TileGrid.TILE_SCENE.instantiate()
 	if visual is TileBase:
 		(visual as TileBase)._animation_played = true
@@ -155,11 +146,8 @@ func _spawn_ruin_at(cell: Vector2i) -> void:
 	_grid.add_child(visual)
 	visual.position = _grid.grid_to_world(cell)
 
-	# Set it to look like a mystery ruin (all ruins edges, darkened)
-	var ruin_edges: Array[int] = [
-		CellData.EdgeType.RUINS, CellData.EdgeType.RUINS,
-		CellData.EdgeType.RUINS, CellData.EdgeType.RUINS
-	]
+	# All wasteland edges for ruin placeholder
+	var ruin_edges: Array[int] = [0, 0, 0, 0, 0, 0]
 	var ruin_tile := CellData.make(ruin_edges)
 	_grid._set_tile_shader(visual, ruin_tile)
 
@@ -174,12 +162,9 @@ func _spawn_ruin_at(cell: Vector2i) -> void:
 
 	_ruins[cell] = { discovered = false, visual = visual }
 
-	# Block this position from normal placement by adding a placeholder tile
-	var placeholder := CellData.make(ruin_edges)
-	_grid.placed_tiles[cell] = placeholder
+	# Block placement
+	_grid.placed_tiles[cell] = CellData.make(ruin_edges)
 	_grid.valid_positions.erase(cell)
-
-	SignalBus.ruin_spawned.emit(cell)
 
 
 func _apply_mystery_tint(visual: Node3D) -> void:
@@ -194,12 +179,10 @@ func _apply_mystery_tint(visual: Node3D) -> void:
 
 
 func _animate_discovery(visual: Node3D) -> void:
-	# Remove mystery tint
 	for child: Node in visual.get_children():
 		if child is MeshInstance3D:
 			(child as MeshInstance3D).material_overlay = null
 
-	# Discovery animation: flash + scale pop
 	var tw := _grid.create_tween()
 	tw.tween_property(visual, "scale", Vector3(1.2, 1.3, 1.2), 0.15) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
@@ -207,11 +190,9 @@ func _animate_discovery(visual: Node3D) -> void:
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 
 
-## Check if a cell has an undiscovered ruin (for placement blocking).
 func is_ruin(cell: Vector2i) -> bool:
 	return _ruins.has(cell)
 
 
-## Check if a cell has an undiscovered ruin.
 func is_undiscovered_ruin(cell: Vector2i) -> bool:
 	return _ruins.has(cell) and not (_ruins[cell] as Dictionary).discovered

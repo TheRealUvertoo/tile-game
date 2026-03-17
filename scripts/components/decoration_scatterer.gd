@@ -12,7 +12,7 @@ extends Node3D
 
 # ── Placement ─────────────────────────────────────────────────────────
 @export_group("Placement")
-@export var spread: float = 0.42        ## Max XZ distance from center (tile half-size)
+@export var spread: float = 0.40        ## Max XZ distance from center (within hex apothem)
 @export var base_height: float = 0.06   ## Y position of sprite base (above tile mesh)
 @export var edge_padding: float = 0.05  ## Keep sprites this far from tile edges
 

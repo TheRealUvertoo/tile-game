@@ -1,0 +1,31 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://dmujotqn0ckgv" path="res://scripts/core/tile_base.gd" id="1_tile"]
+[ext_resource type="Shader" uid="uid://c3isbyy8653u4" path="res://shaders/prototype_tile.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_hex"]
+render_priority = 0
+shader = ExtResource("2_shader")
+shader_parameter/tile_color = Color(0.42, 0.38, 0.32, 1)
+shader_parameter/edge_0 = 0
+shader_parameter/edge_1 = 0
+shader_parameter/edge_2 = 0
+shader_parameter/edge_3 = 0
+shader_parameter/edge_4 = 0
+shader_parameter/edge_5 = 0
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_hex"]
+material = SubResource("ShaderMaterial_hex")
+top_radius = 0.5
+bottom_radius = 0.5
+height = 0.06
+radial_segments = 6
+rings = 0
+
+[node name="HexTile" type="Node3D"]
+script = ExtResource("1_tile")
+
+[node name="TileMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("CylinderMesh_hex")
+
+[node name="Decorations" type="Node3D" parent="."]

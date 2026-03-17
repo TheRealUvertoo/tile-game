@@ -1,7 +1,7 @@
 class_name TilePlacement
 extends Node3D
 
-## Handles Carcassonne-style tile placement: hover preview, R-key rotation, LMB place.
+## Handles hex tile placement: hover preview, R-key rotation (60°), LMB place.
 
 var grid: TileGrid
 var camera: Camera3D
@@ -13,9 +13,9 @@ var hovered_cell: Vector2i = Vector2i(99999, 99999)
 @export var invalid_tint: Color = Color(1.0, 0.3, 0.3, 0.6)
 
 @export_group("Slot Markers")
-@export var marker_y_offset: float = 0.005
-@export var valid_color: Color = Color(0.3, 1.0, 0.3, 0.35)
-@export var neutral_color: Color = Color(1.0, 1.0, 1.0, 0.12)
+@export var marker_y_offset: float = 0.04
+@export var valid_color: Color = Color(0.4, 1.0, 0.4, 0.45)
+@export var neutral_color: Color = Color(1.0, 1.0, 1.0, 0.25)
 
 var _preview: Node3D = null
 var _slot_markers: Dictionary = {}
@@ -40,7 +40,7 @@ func _process(_delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		_try_place()
-	elif event is InputEventKey and event.pressed and event.keycode == KEY_R:
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
 		_rotate_group()
 
 
@@ -129,7 +129,7 @@ func _rebuild_preview() -> void:
 	add_child(node)
 	_preview = node
 
-	# Set edge shader on preview
+	# Set edge shader on preview — 6 edges
 	var rotated_edges := current_group.get_rotated_edges()
 	var mesh_inst := _find_mesh(node)
 	if mesh_inst != null and mesh_inst.mesh and mesh_inst.mesh.get_surface_count() > 0:
@@ -138,10 +138,8 @@ func _rebuild_preview() -> void:
 			mesh_inst.mesh = mesh_inst.mesh.duplicate()
 			var mat := (surf_mat as ShaderMaterial).duplicate()
 			mesh_inst.mesh.surface_set_material(0, mat)
-			mat.set_shader_parameter("edge_e", rotated_edges[0])
-			mat.set_shader_parameter("edge_n", rotated_edges[1])
-			mat.set_shader_parameter("edge_w", rotated_edges[2])
-			mat.set_shader_parameter("edge_s", rotated_edges[3])
+			for i: int in range(6):
+				mat.set_shader_parameter("edge_%d" % i, rotated_edges[i])
 			mat.set_shader_parameter("tile_color", CellData.BASE_COLOR)
 
 
@@ -155,7 +153,7 @@ func _find_mesh(node: Node) -> MeshInstance3D:
 	return null
 
 
-# ---- Slot markers ----
+# ---- Slot markers (hex-shaped) ----
 
 func refresh_slot_markers() -> void:
 	var current_valid := grid.valid_positions
@@ -174,7 +172,7 @@ func refresh_slot_markers() -> void:
 
 func _create_marker(cell: Vector2i) -> MeshInstance3D:
 	if _shared_marker_mesh == null:
-		_shared_marker_mesh = _build_marker_mesh()
+		_shared_marker_mesh = _build_hex_marker_mesh()
 	var mi := MeshInstance3D.new()
 	mi.mesh = _shared_marker_mesh
 	mi.position = grid.grid_to_world(cell)
@@ -184,18 +182,26 @@ func _create_marker(cell: Vector2i) -> MeshInstance3D:
 	return mi
 
 
-func _build_marker_mesh() -> ArrayMesh:
+## Build a flat hex marker mesh (pointy-top).
+func _build_hex_marker_mesh() -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	st.set_color(Color.WHITE)
 	st.set_normal(Vector3.UP)
-	var half := (grid.tile_size if grid else 1.0) * 0.5
-	st.add_vertex(Vector3(half, 0.0, -half))
-	st.add_vertex(Vector3(half, 0.0, half))
-	st.add_vertex(Vector3(-half, 0.0, half))
-	st.add_vertex(Vector3(half, 0.0, -half))
-	st.add_vertex(Vector3(-half, 0.0, half))
-	st.add_vertex(Vector3(-half, 0.0, -half))
+
+	var radius := 0.5 * 0.95  # Slightly smaller than hex_tile.tscn radius (0.5) for visible gap
+	# Pointy-top: first vertex at 90° (top), then every 60°
+	var verts: Array[Vector3] = []
+	for i: int in range(6):
+		var angle := PI / 2.0 + float(i) * PI / 3.0
+		verts.append(Vector3(cos(angle) * radius, 0.0, -sin(angle) * radius))
+
+	# 6 triangles from center
+	for i: int in range(6):
+		st.add_vertex(Vector3.ZERO)
+		st.add_vertex(verts[i])
+		st.add_vertex(verts[(i + 1) % 6])
+
 	return st.commit()
 
 

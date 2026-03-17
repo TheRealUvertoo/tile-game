@@ -1,7 +1,7 @@
 extends Node3D
 
-## Main game controller — Carcassonne-style desert tile placement.
-## Hand-based: draw 3 tiles, pick one, match edges to place.
+## Main game controller — Dorfromantik-style hex tile placement.
+## Isengard theme: build orc landscape with wasteland, forest, fortress, mine.
 
 const STARTING_GROUPS := 40
 
@@ -13,7 +13,6 @@ const STARTING_GROUPS := 40
 var _deck: TileDeck
 var _hand_manager: HandManager
 var _hand_ui: HandUI
-var _ruins_manager: RuinsManager
 var _score: int = 0
 var _turn: int = 1
 var _placements_this_turn: int = 0
@@ -43,23 +42,14 @@ func _ready() -> void:
 	placement.grid = grid
 	placement.camera = camera_rig
 
-	# Ruins manager
-	_ruins_manager = RuinsManager.new()
-	_ruins_manager.name = "RuinsManager"
-	add_child(_ruins_manager)
-
 	# Connect signals
 	SignalBus.group_placed.connect(_on_group_placed)
-	SignalBus.ruin_discovered.connect(_on_ruin_discovered)
 
-	# Place starting tile: trail straight (N-S) — easy to connect to
-	var start_edges: Array[int] = [0, 1, 0, 1]
+	# Place starting tile: all wasteland (easy to connect to anything)
+	var start_edges: Array[int] = [0, 0, 0, 0, 0, 0]
 	var start_tile := CellData.make(start_edges)
 	grid.place_starting_tile(start_tile)
 	placement.refresh_slot_markers()
-
-	# Initialize ruins after grid is ready
-	_ruins_manager.init(grid)
 
 	# Score preview label
 	_preview_label = Label3D.new()
@@ -83,7 +73,6 @@ func _on_group_placed(cells: Array[Vector2i], tiles: Array[CellData]) -> void:
 	if _game_over:
 		return
 
-	# Score the placement
 	if not cells.is_empty():
 		var result := TileScoring.score_placement(cells[0], tiles[0], grid)
 		_score += result.points
@@ -120,43 +109,6 @@ func _on_group_placed(cells: Array[Vector2i], tiles: Array[CellData]) -> void:
 		)
 
 
-func _on_ruin_discovered(cell: Vector2i, artifact_name: String, bonus_points: int, bonus_groups: int) -> void:
-	_score += bonus_points
-	if bonus_groups > 0:
-		_deck.add_groups(bonus_groups)
-	SignalBus.score_earned.emit(_score, bonus_points, null)
-	SignalBus.stack_changed.emit(_deck.groups_remaining())
-
-	# Spawn floating text for artifact
-	var label := Label3D.new()
-	label.text = artifact_name
-	if bonus_points > 0:
-		label.text += " +%d" % bonus_points
-	if bonus_groups > 0:
-		label.text += " +%d kafelki" % bonus_groups
-	label.font_size = 22
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
-	label.outline_size = 5
-	label.outline_modulate = Color(0, 0, 0, 0.6)
-	label.modulate = Color(0.9, 0.7, 1.0, 0.9)
-	add_child(label)
-
-	var world_pos := grid.grid_to_world(cell)
-	label.position = world_pos + Vector3(0, 0.4, 0)
-
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(label, "position:y", world_pos.y + 1.2, 1.5) \
-		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tween.tween_property(label, "modulate:a", 0.0, 1.5) \
-		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-	tween.chain().tween_callback(label.queue_free)
-
-	# Refresh slot markers since ruin became a real tile
-	placement.refresh_slot_markers()
-
-
 func _check_milestone() -> void:
 	while _score >= _next_milestone:
 		_deck.add_groups(MILESTONE_BONUS_GROUPS)
@@ -183,7 +135,6 @@ func _spawn_3d_score_text(cell: Vector2i, result: TileScoring.ScoringResult) -> 
 	if not result.synergies.is_empty():
 		label.text += " " + " | ".join(result.synergies)
 	if result.is_perfect:
-		label.text += " IDEALNIE!"
 		label.modulate = Color(1, 0.9, 0.3, 0.8)
 	elif not result.synergies.is_empty():
 		label.modulate = Color(0.5, 1.0, 0.7, 0.8)
@@ -236,7 +187,6 @@ func _update_score_preview() -> void:
 	if not result.synergies.is_empty():
 		_preview_label.text += " " + " | ".join(result.synergies)
 	if result.is_perfect:
-		_preview_label.text += " IDEALNIE!"
 		_preview_label.modulate = Color(1, 0.9, 0.3, 0.7)
 	elif not result.synergies.is_empty():
 		_preview_label.modulate = Color(0.5, 1.0, 0.7, 0.7)

@@ -2,7 +2,6 @@ extends Node
 
 ## Central signal hub. Modules emit/connect here instead of
 ## directly referencing each other.
-## Signals are emitted from external scripts, hence the warning suppression.
 
 # Camera
 @warning_ignore("unused_signal")
@@ -26,12 +25,6 @@ signal stack_changed(remaining: int)
 @warning_ignore("unused_signal")
 signal game_ended(final_score: int)
 
-# Ruins discovery
-@warning_ignore("unused_signal")
-signal ruin_spawned(cell: Vector2i)
-@warning_ignore("unused_signal")
-signal ruin_discovered(cell: Vector2i, artifact_name: String, bonus_points: int, bonus_groups: int)
-
 # --- Hand System ---
 @warning_ignore("unused_signal")
 signal hand_changed(hand: Array[TileGroup])
@@ -47,3 +40,9 @@ signal hand_slot_swap_requested(index: int)
 signal hand_slot_swapped(index: int, new_group: TileGroup)
 @warning_ignore("unused_signal")
 signal swap_available_changed(available: bool)
+
+# --- Ruins ---
+@warning_ignore("unused_signal")
+signal ruin_spawned(cell: Vector2i)
+@warning_ignore("unused_signal")
+signal ruin_discovered(cell: Vector2i, artifact_name: String, bonus_points: int, bonus_groups: int)

@@ -1,8 +1,8 @@
 class_name HandUI
 extends Control
 
-## Bottom-center hand bar — shows HAND_SIZE clickable tile slots.
-## Each slot draws the tile with colored edges (Carcassonne-style).
+## Bottom-center hand bar — shows HAND_SIZE clickable hex tile slots.
+## Each slot draws a hex with colored edge sectors.
 
 const HAND_SIZE := HandManager.HAND_SIZE
 
@@ -141,7 +141,7 @@ func _on_slot_clicked(index: int) -> void:
 	SignalBus.hand_slot_clicked.emit(index)
 
 
-# ── Inner class: single slot panel ─────────────────────────────────────
+# ── Inner class: single hex slot panel ─────────────────────────────────
 
 class _HandSlot extends Control:
 	var group: TileGroup = null
@@ -214,26 +214,11 @@ class _HandSlot extends Control:
 
 		if group != null:
 			var rotated := group.get_rotated_edges()
-			var tile_area := minf(size.x, size.y) * 0.6
-			var tile_origin := (size - Vector2(tile_area, tile_area)) * 0.5
+			var hex_radius: float = minf(size.x, size.y) * 0.35
+			var center := size * 0.5
 
-			# Draw base tile (sand color)
-			var tile_rect := Rect2(tile_origin, Vector2(tile_area, tile_area))
-			draw_rect(tile_rect, CellData.BASE_COLOR, true)
-
-			# Draw edges as colored bands
-			var edge_thick := tile_area * 0.2
-			# E (right)
-			_draw_edge_band(tile_origin, tile_area, edge_thick, 0, rotated[0])
-			# N (top)
-			_draw_edge_band(tile_origin, tile_area, edge_thick, 1, rotated[1])
-			# W (left)
-			_draw_edge_band(tile_origin, tile_area, edge_thick, 2, rotated[2])
-			# S (bottom)
-			_draw_edge_band(tile_origin, tile_area, edge_thick, 3, rotated[3])
-
-			# Tile border
-			draw_rect(tile_rect, Color(1, 1, 1, 0.15), false, 1.0)
+			# Draw hex with colored sectors
+			_draw_hex_tile(center, hex_radius, rotated)
 
 			# Template name
 			var name_pos := Vector2(size.x * 0.5, size.y - 8)
@@ -245,14 +230,29 @@ class _HandSlot extends Control:
 		if is_selected:
 			draw_rect(rect, selected_border_color, false, selected_border_width)
 
-	func _draw_edge_band(origin: Vector2, area: float, thick: float, dir: int, edge_type: int) -> void:
-		if edge_type == CellData.EdgeType.SAND:
-			return  # Sand = base color, skip
-		var color: Color = CellData.EDGE_COLORS.get(edge_type, Color.WHITE)
-		var r: Rect2
-		match dir:
-			0: r = Rect2(origin.x + area - thick, origin.y, thick, area)        # E
-			1: r = Rect2(origin.x, origin.y, area, thick)                        # N
-			2: r = Rect2(origin.x, origin.y, thick, area)                        # W
-			3: r = Rect2(origin.x, origin.y + area - thick, area, thick)         # S
-		draw_rect(r, color, true)
+	## Draw a hex with 6 colored sectors.
+	func _draw_hex_tile(center: Vector2, radius: float, edges: Array[int]) -> void:
+		# Pointy-top: vertices at 90° + i*60°
+		var verts: Array[Vector2] = []
+		for i: int in range(6):
+			var angle := PI / 2.0 + float(i) * PI / 3.0
+			verts.append(center + Vector2(cos(angle), -sin(angle)) * radius)
+
+		# Draw each sector (triangle from center to edge)
+		for i: int in range(6):
+			var edge_type: int = edges[i]
+			var color: Color = CellData.TERRAIN_COLORS.get(edge_type, Color.WHITE)
+			var points: PackedVector2Array = [center, verts[i], verts[(i + 1) % 6]]
+			var colors: PackedColorArray = [color, color, color]
+			draw_polygon(points, colors)
+
+		# Hex outline
+		for i: int in range(6):
+			draw_line(verts[i], verts[(i + 1) % 6], Color(1, 1, 1, 0.2), 1.0)
+
+		# Sector divider lines (from center to vertices)
+		for i: int in range(6):
+			var edge_a: int = edges[i]
+			var edge_b: int = edges[(i + 5) % 6]
+			if edge_a != edge_b:
+				draw_line(center, verts[i], Color(0, 0, 0, 0.15), 1.0)

@@ -1,78 +1,85 @@
 class_name TileDeck
 extends RefCounted
 
-## Sunscar tile generator — 6 edge types, template-based.
-## Edges: 0=Sand, 1=Trail, 2=Settlement, 3=Ruins, 4=Mountains, 5=Oasis
+## Sunscar hex tile generator — 4 terrain types, Dorfromantik-style templates.
+## Terrains: 0=Wasteland, 1=Forest, 2=Fortress, 3=Mine
+## Edges: [E, NE, NW, W, SW, SE] — 6 edges per hex
 
 const DEFAULT_STARTING_GROUPS := 40
 
 var _remaining: int = DEFAULT_STARTING_GROUPS
 var _rng := RandomNumberGenerator.new()
 
-## Template pool — edges are [E, N, W, S]
-## Weight controlled by repetition.
+## W=Wasteland(0), F=Forest(1), X=Fortress(2), M=Mine(3)
 const TEMPLATES: Array[Dictionary] = [
-	# ── Pure sand (filler, common) ──
-	{ edges = [0, 0, 0, 0], name = "Wydma" },
-	{ edges = [0, 0, 0, 0], name = "Wydma" },
-	{ edges = [0, 0, 0, 0], name = "Wydma" },
-	{ edges = [0, 0, 0, 0], name = "Wydma" },
+	# ── Pure terrain (all 6 edges same) ──
+	{ edges = [0,0,0,0,0,0], name = "Pustkowia" },
+	{ edges = [0,0,0,0,0,0], name = "Pustkowia" },
+	{ edges = [0,0,0,0,0,0], name = "Pustkowia" },
+	{ edges = [1,1,1,1,1,1], name = "Gęsty bór" },
+	{ edges = [1,1,1,1,1,1], name = "Gęsty bór" },
+	{ edges = [2,2,2,2,2,2], name = "Cytadela" },
+	{ edges = [3,3,3,3,3,3], name = "Wielka kopalnia" },
 
-	# ── Trail tiles (caravan routes, common) ──
-	{ edges = [0, 1, 0, 1], name = "Szlak prosty" },      # N-S
-	{ edges = [0, 1, 0, 1], name = "Szlak prosty" },
-	{ edges = [0, 1, 0, 1], name = "Szlak prosty" },
-	{ edges = [1, 0, 1, 0], name = "Szlak prosty" },      # E-W
-	{ edges = [1, 1, 0, 0], name = "Szlak zakręt" },      # E-N
-	{ edges = [1, 1, 0, 0], name = "Szlak zakręt" },
-	{ edges = [1, 0, 0, 1], name = "Szlak zakręt" },      # E-S
-	{ edges = [0, 1, 1, 0], name = "Szlak zakręt" },      # N-W
-	{ edges = [1, 1, 0, 1], name = "Rozwidlenie" },       # E-N-S
-	{ edges = [1, 1, 1, 1], name = "Skrzyżowanie" },      # All 4
+	# ── Half tiles (3+3 split) ──
+	{ edges = [1,1,1,0,0,0], name = "Skraj lasu" },
+	{ edges = [1,1,1,0,0,0], name = "Skraj lasu" },
+	{ edges = [1,1,1,0,0,0], name = "Skraj lasu" },
+	{ edges = [2,2,2,0,0,0], name = "Mury" },
+	{ edges = [2,2,2,0,0,0], name = "Mury" },
+	{ edges = [3,3,3,0,0,0], name = "Wyrobisko" },
+	{ edges = [3,3,3,0,0,0], name = "Wyrobisko" },
 
-	# ── Settlement tiles (sandstone cities) ──
-	{ edges = [0, 2, 0, 0], name = "Mury" },               # N only
-	{ edges = [0, 2, 0, 0], name = "Mury" },
-	{ edges = [2, 2, 0, 0], name = "Narożnik" },           # E-N
-	{ edges = [2, 2, 0, 0], name = "Narożnik" },
-	{ edges = [2, 2, 2, 0], name = "Twierdza" },           # E-N-W
-	{ edges = [2, 2, 2, 2], name = "Cytadela" },           # All 4
+	# ── Wedge (2 adjacent edges) ──
+	{ edges = [1,1,0,0,0,0], name = "Zagajnik" },
+	{ edges = [1,1,0,0,0,0], name = "Zagajnik" },
+	{ edges = [1,1,0,0,0,0], name = "Zagajnik" },
+	{ edges = [2,2,0,0,0,0], name = "Wieża" },
+	{ edges = [2,2,0,0,0,0], name = "Wieża" },
+	{ edges = [3,3,0,0,0,0], name = "Szyb" },
+	{ edges = [3,3,0,0,0,0], name = "Szyb" },
 
-	# ── Settlement + Trail (gates, trade) ──
-	{ edges = [0, 2, 0, 1], name = "Brama" },              # N settlement, S trail
-	{ edges = [0, 2, 0, 1], name = "Brama" },
-	{ edges = [1, 2, 1, 0], name = "Trakt handlowy" },     # E-W trail, N settlement
-	{ edges = [2, 2, 1, 0], name = "Brama narożna" },      # E-N settlement, W trail
+	# ── Single edge ──
+	{ edges = [1,0,0,0,0,0], name = "Samotne drzewo" },
+	{ edges = [1,0,0,0,0,0], name = "Samotne drzewo" },
+	{ edges = [2,0,0,0,0,0], name = "Strażnica" },
+	{ edges = [2,0,0,0,0,0], name = "Strażnica" },
+	{ edges = [3,0,0,0,0,0], name = "Odkrywka" },
+	{ edges = [3,0,0,0,0,0], name = "Odkrywka" },
 
-	# ── Mountains (rocky formations) ──
-	{ edges = [0, 4, 0, 0], name = "Klif" },               # N only
-	{ edges = [0, 4, 0, 0], name = "Klif" },
-	{ edges = [4, 4, 0, 0], name = "Wąwóz" },             # E-N
-	{ edges = [4, 4, 0, 0], name = "Wąwóz" },
-	{ edges = [4, 4, 4, 0], name = "Pasmo" },              # E-N-W
-	{ edges = [4, 4, 4, 4], name = "Szczyt" },             # All 4
+	# ── Opposite pairs ──
+	{ edges = [1,0,0,1,0,0], name = "Przesieka" },
+	{ edges = [1,0,0,1,0,0], name = "Przesieka" },
+	{ edges = [2,0,0,2,0,0], name = "Bastiony" },
+	{ edges = [3,0,0,3,0,0], name = "Dwa szyby" },
 
-	# ── Mountains + Trail (mountain passes) ──
-	{ edges = [1, 4, 1, 0], name = "Przełęcz" },           # E-W trail, N mountains
-	{ edges = [0, 4, 0, 1], name = "Przełęcz" },           # N mountains, S trail
-	{ edges = [4, 4, 1, 0], name = "Górska brama" },       # E-N mountains, W trail
+	# ── Mixed: Forest + Fortress ──
+	{ edges = [1,1,1,2,2,2], name = "Leśna twierdza" },
+	{ edges = [1,1,1,2,2,2], name = "Leśna twierdza" },
+	{ edges = [1,1,0,2,0,0], name = "Fort przy borze" },
 
-	# ── Mountains + Settlement (fortresses) ──
-	{ edges = [2, 4, 0, 0], name = "Twierdza górska" },    # E settlement, N mountains
-	{ edges = [4, 2, 0, 0], name = "Twierdza górska" },    # E mountains, N settlement
+	# ── Mixed: Forest + Mine ──
+	{ edges = [1,1,1,3,3,3], name = "Wyręb" },
+	{ edges = [1,1,1,3,3,3], name = "Wyręb" },
+	{ edges = [1,1,0,3,0,0], name = "Tartak" },
 
-	# ── Oasis tiles (rare, valuable) ──
-	{ edges = [0, 5, 0, 0], name = "Oaza" },               # N only
-	{ edges = [5, 0, 5, 0], name = "Oaza podwójna" },      # E-W
-	{ edges = [0, 5, 0, 5], name = "Oaza podwójna" },      # N-S
+	# ── Mixed: Fortress + Mine ──
+	{ edges = [2,2,2,3,3,3], name = "Kuźnia" },
+	{ edges = [2,2,2,3,3,3], name = "Kuźnia" },
+	{ edges = [2,2,0,3,0,0], name = "Zbrojownia" },
 
-	# ── Oasis + Trail (caravan stops) ──
-	{ edges = [1, 5, 0, 0], name = "Postój karawany" },    # E trail, N oasis
-	{ edges = [0, 5, 0, 1], name = "Postój karawany" },    # N oasis, S trail
+	# ── 4 edges + 2 wasteland ──
+	{ edges = [1,1,1,1,0,0], name = "Gaj" },
+	{ edges = [1,1,1,1,0,0], name = "Gaj" },
+	{ edges = [2,2,2,2,0,0], name = "Warownia" },
+	{ edges = [3,3,3,3,0,0], name = "Kamieniołom" },
 
-	# ── Oasis + Settlement (prosperous cities) ──
-	{ edges = [2, 5, 0, 0], name = "Raj kupców" },         # E settlement, N oasis
-	{ edges = [5, 2, 0, 0], name = "Raj kupców" },         # E oasis, N settlement
+	# ── 5 edges + 1 gap ──
+	{ edges = [1,1,1,1,1,0], name = "Polana" },
+	{ edges = [2,2,2,2,2,0], name = "Oblężenie" },
+
+	# ── Three-way split ──
+	{ edges = [1,1,2,2,3,3], name = "Rozdroże" },
 ]
 
 
@@ -104,5 +111,5 @@ func _generate_random_tile() -> TileGroup:
 	for e in src:
 		group.edges.append(e as int)
 	group.template_name = template.name as String
-	group.rotation = _rng.randi_range(0, 3)
+	group.rotation = _rng.randi_range(0, 5)
 	return group

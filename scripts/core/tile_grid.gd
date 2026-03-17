@@ -1,34 +1,42 @@
 class_name TileGrid
 extends Node3D
 
-## Square grid for Carcassonne-style tile placement.
+## Hex grid for Dorfromantik-style tile placement.
+## Pointy-top hexagons, axial coordinates (q, r).
 ## Validates edge matching between adjacent tiles.
 
-@export_group("Grid")
-@export var tile_size: float = 1.0
+## Single tile scene (shader handles visuals)
+const TILE_SCENE: PackedScene = preload("res://scenes/tiles/hex_tile.tscn")
 
-@export_group("Animation")
-@export var tile_stagger: float = 0.0  ## No stagger for single tiles
-
-## Single tile scene for all tiles (shader handles visuals)
-const TILE_SCENE: PackedScene = preload("res://scenes/tiles/desert_tile.tscn")
+## Tower decoration models (placed on fortress-edged tiles)
+var _tower_scenes: Array[PackedScene] = []
 
 var placed_tiles: Dictionary = {}      ## Vector2i -> CellData
 var valid_positions: Dictionary = {}   ## Vector2i -> true (adjacent to placed)
 var _visuals: Dictionary = {}          ## Vector2i -> Node3D
+var _rng := RandomNumberGenerator.new()
+
+
+func _ready() -> void:
+	_rng.randomize()
+	# Load tower scenes
+	for i: int in range(1, 4):
+		var path := "res://assets/crocotile/wieza-%d.gltf" % i
+		if ResourceLoader.exists(path):
+			_tower_scenes.append(load(path) as PackedScene)
 
 
 func grid_to_world(cell: Vector2i) -> Vector3:
-	return Vector3(float(cell.x) * tile_size, 0.0, float(cell.y) * tile_size)
+	return CellData.hex_to_world(cell)
 
 
 func world_to_grid(world_pos: Vector3) -> Vector2i:
-	return Vector2i(roundi(world_pos.x / tile_size), roundi(world_pos.z / tile_size))
+	return CellData.world_to_hex(world_pos)
 
 
 func get_neighbors(cell: Vector2i) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
-	for dir: int in range(4):
+	for dir: int in range(6):
 		var neighbor := cell + CellData.DIRECTIONS[dir]
 		if placed_tiles.has(neighbor):
 			result.append(neighbor)
@@ -39,8 +47,9 @@ func is_valid_position(cell: Vector2i) -> bool:
 	return valid_positions.has(cell) and not placed_tiles.has(cell)
 
 
-## Check if a tile with given edges can be placed at cell.
-## Rules: cell must be empty, adjacent to existing tile, ALL touching edges must match.
+## Check if a tile can be placed at cell.
+## Rules: cell must be empty and adjacent to at least one existing tile.
+## Edge matching is NOT required — mismatched edges are allowed but score no bonus.
 func is_valid_tile_placement(cell: Vector2i, rotated_edges: Array[int]) -> bool:
 	if placed_tiles.has(cell):
 		return false
@@ -49,43 +58,32 @@ func is_valid_tile_placement(cell: Vector2i, rotated_edges: Array[int]) -> bool:
 	if placed_tiles.is_empty():
 		return true
 
-	var has_neighbor := false
-	for dir: int in range(4):
+	for dir: int in range(6):
 		var npos := cell + CellData.DIRECTIONS[dir]
-		if not placed_tiles.has(npos):
-			continue
-		has_neighbor = true
+		if placed_tiles.has(npos):
+			return true
 
-		# Edge matching: my edge must equal neighbor's opposite edge
-		var ntile: CellData = placed_tiles[npos]
-		var my_edge: int = rotated_edges[dir]
-		var their_edge: int = ntile.edges[CellData.opposite_dir(dir)]
-		if my_edge != their_edge:
-			return false
-
-	return has_neighbor
+	return false
 
 
-## Legacy compatibility — used by slot markers for basic adjacency check.
+## Legacy compat for slot markers (adjacency check without edge data).
 func is_valid_group_placement(cells: Array[Vector2i]) -> bool:
 	if cells.is_empty():
 		return false
-	# For Carcassonne, we can't check without edge data.
-	# Return true if cell is empty and adjacent (edge check done separately).
 	var cell: Vector2i = cells[0]
 	if placed_tiles.has(cell):
 		return false
 	if placed_tiles.is_empty():
 		return true
-	for dir: int in range(4):
+	for dir: int in range(6):
 		if placed_tiles.has(cell + CellData.DIRECTIONS[dir]):
 			return true
 	return false
 
 
-## Place the starting tile at origin.
-func place_starting_tile(tile: CellData) -> void:
-	_place_tile_internal(Vector2i.ZERO, tile)
+## Place a starting tile at a given cell.
+func place_starting_tile(tile: CellData, cell: Vector2i = Vector2i.ZERO) -> void:
+	_place_tile_internal(cell, tile)
 
 
 ## Place a tile from a group. Returns true on success.
@@ -130,12 +128,15 @@ func _place_tile_internal(cell: Vector2i, tile: CellData, _delay: float = 0.0) -
 	# Set shader edge parameters
 	_set_tile_shader(visual, tile)
 
+	# Spawn decorations based on terrain
+	_spawn_decorations(visual, tile, cell)
+
 	# Appear animation
 	if visual is TileBase:
 		(visual as TileBase).play_appear_animation(_delay)
 
-	# Update valid positions
-	for dir: int in range(4):
+	# Update valid positions (6 hex neighbors)
+	for dir: int in range(6):
 		var neighbor := cell + CellData.DIRECTIONS[dir]
 		if not placed_tiles.has(neighbor):
 			valid_positions[neighbor] = true
@@ -159,10 +160,13 @@ func _set_tile_shader(visual: Node3D, tile: CellData) -> void:
 	if mat == null:
 		return
 
-	mat.set_shader_parameter("edge_e", tile.edges[0])
-	mat.set_shader_parameter("edge_n", tile.edges[1])
-	mat.set_shader_parameter("edge_w", tile.edges[2])
-	mat.set_shader_parameter("edge_s", tile.edges[3])
+	# Set 6 edge uniforms
+	mat.set_shader_parameter("edge_0", tile.edges[0])  # E
+	mat.set_shader_parameter("edge_1", tile.edges[1])  # NE
+	mat.set_shader_parameter("edge_2", tile.edges[2])  # NW
+	mat.set_shader_parameter("edge_3", tile.edges[3])  # W
+	mat.set_shader_parameter("edge_4", tile.edges[4])  # SW
+	mat.set_shader_parameter("edge_5", tile.edges[5])  # SE
 	mat.set_shader_parameter("tile_color", CellData.BASE_COLOR)
 
 
@@ -174,3 +178,44 @@ func _find_tile_mesh(node: Node) -> MeshInstance3D:
 		if result != null:
 			return result
 	return null
+
+
+## Spawn 3D decorations on the tile based on terrain edges.
+func _spawn_decorations(visual: Node3D, tile: CellData, cell: Vector2i) -> void:
+	if _tower_scenes.is_empty():
+		return
+
+	# Count fortress edges
+	var fortress_count := 0
+	for dir: int in range(6):
+		if tile.edges[dir] == CellData.TerrainType.FORTRESS:
+			fortress_count += 1
+
+	if fortress_count == 0:
+		return
+
+	# Deterministic seed per cell
+	_rng.seed = (cell.x * 73856093 ^ cell.y * 19349663) & 0x7FFFFFFF
+
+	# Number of towers: 1-3 based on fortress edge count
+	var num_towers := clampi(ceili(float(fortress_count) / 2.0), 1, 3)
+
+	var hex_r := CellData.HEX_SIZE * 0.3  # Keep towers within inner area
+	for i: int in range(num_towers):
+		var tower_scene: PackedScene = _tower_scenes[_rng.randi() % _tower_scenes.size()]
+		var tower: Node3D = tower_scene.instantiate()
+
+		# Random position within hex (offset from center toward fortress edges)
+		var angle := _rng.randf() * TAU
+		var dist := _rng.randf() * hex_r
+		var offset := Vector3(cos(angle) * dist, 0.03, sin(angle) * dist)
+
+		# Small random scale (0.04 - 0.07 — tiny towers on tile)
+		var s := _rng.randf_range(0.04, 0.07)
+		tower.scale = Vector3(s, s, s)
+
+		# Random Y rotation
+		tower.rotation.y = _rng.randf() * TAU
+
+		tower.position = offset
+		visual.add_child(tower)
